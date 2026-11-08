@@ -15,7 +15,7 @@
 The Dynamic Island is one of the things you miss after moving from an iPhone to Android. Otori brings it to the Pixel.
 
 Play some music and a black pill grows out of the camera, with the album art and a moving waveform. Long press it for
-the full player. When nothing's playing, it shrinks back into the camera hole and your phone looks the way it always did.
+the full player. Other apps' Live Updates, like a ride on its way or a delivery, show there too. When nothing's playing, it shrinks back into the camera hole and your phone looks the way it always did.
 
 It doesn't need root. It also doesn't have Android's internet permission, so it has no way to send anything anywhere.
 
@@ -23,7 +23,7 @@ It doesn't need root. It also doesn't have Android's internet permission, so it 
   <img src="docs/demo.gif" alt="A black dot at the camera grows into a pill with album art and a waveform, opens into a music player, then shrinks back to a dot." width="480">
 </p>
 
-> **This is early.** We've only tested it on one Pixel 10 Pro running Android 17, and it only does music so far. Other
+> **This is early.** We've only tested it on one Pixel 10 Pro running Android 17, and it only does music and Live Updates so far. Other
 > phones with a camera hole at the top centre should work, but we haven't tried any. If you try one, please
 > [open an issue](https://github.com/wonderhoy-labs/otori/issues) and tell us how it went, even if it just worked.
 
@@ -66,12 +66,50 @@ Play some music, then leave your music app. The island only shows up while that 
 | **Music island** | Opens your music app | Opens the player | Down opens the player. Sideways tucks it away. |
 | **Player** | Art or title opens your music app. Tap outside to close. | | Up closes it |
 | **Tucked away** | | | Sideways, starting at the camera, brings it back |
+| **Live Update** | Opens what the app said to | Shows its title, text and progress | Down shows them too. Sideways tucks it away. |
 
 You can drag the progress bar to move around in a song. The player closes by itself after 12 seconds if you leave it
 alone. After you pause, the island stays for 20 seconds and then goes away. It stays hidden on the lock screen.
 
 When nothing's playing, the island takes no touches at all, so pulling down the status bar works as usual, even right
 over the camera.
+
+## Use it in your app
+
+Any app can show up in the island, using Android's own **Live Updates** from Android 16, with nothing from Otori to add.
+Post an ongoing notification that asks to be promoted, and once Android promotes it, Otori shows it like music: the
+app's icon in its colour on the left, your short text on the right, and a title, text and progress bar when expanded.
+Tapping it opens the notification's content intent.
+
+```kotlin
+val notification = Notification.Builder(context, channelId)
+	.setSmallIcon(R.drawable.ic_ride)
+	.setContentTitle("Your ride is on its way") // required
+	.setContentText("Arriving at the main entrance")
+	.setColor(0xFF34C759.toInt()) // the island's colour for you
+	.setOngoing(true)
+	.setRequestPromotedOngoing(true)
+	.setShortCriticalText("6 min") // the compact island's text
+	.setStyle(Notification.ProgressStyle().setProgress(40)) // optional, out of 100 by default
+	.setContentIntent(pendingIntent) // what a tap opens
+	.build()
+```
+
+The app needs the `POST_PROMOTED_NOTIFICATIONS` permission in its manifest, and Android has to accept it as a Live Update:
+ongoing, with a title, not colourised and with no custom views. Otori reads what Android decided, the notification's
+`FLAG_PROMOTED_ONGOING`, so if it shows as a chip in the status bar, it shows in the island too.
+
+| From the notification | Where it goes |
+| --- | --- |
+| Small icon and `color` | The left of the compact island and the expanded one, in that colour |
+| `setShortCriticalText` | The right of the compact island, shrunk to fit, and the top right when expanded |
+| Title and text | The expanded island's two lines |
+| `ProgressStyle`, or `setProgress` | The expanded progress bar, in the app's colour. Without short text, the compact island shows a percentage |
+| Content intent | What tapping the island opens |
+
+Music comes first while it plays, and for 20 seconds after it pauses. Otherwise the island shows the most recent Live
+Update whose app isn't on screen. When the notification goes, so does the island. AndroidX's `NotificationCompat` has the
+same calls for apps that also run on older Android.
 
 ## How close is it to the real thing?
 
@@ -112,6 +150,9 @@ On the emulator, with a real media session and injected touches, all passing:
   it back.
 - Turning the accessibility switch off and on 8 times in a row, with no crash.
 - The first-run setup, by tapping through the real Settings screens (`pnpm setup-flow`).
+- A Live Update from the test player, an ongoing `ProgressStyle` notification with short critical text that Android
+  promoted: it opened the island, stayed while its progress changed, left when it was cleared, and a tap opened its content
+  intent. The compact and expanded forms were checked by eye in screenshots.
 
 On a Pixel 10 Pro with Android 17:
 
@@ -132,10 +173,10 @@ Otori is made of two parts, each using one of the permissions you turned on:
               ┌────────────────┴─────────────────┐
      Accessibility service             Notification listener
               │                                  │
-      ┌───────┴────────┐                  media sessions
-  overlay windows   status bar                   │
-      │             icon positions       song, art, controls
-  the island
+      ┌───────┴────────┐              ┌──────────┴──────────┐
+  overlay windows   status bar   media sessions        Live Updates
+      │             icon positions       │                   │
+  the island                     song, art, controls   promoted notifications
 ```
 
 An accessibility overlay is the only kind of window an ordinary app can draw above the status bar. There are two of them.
@@ -153,7 +194,7 @@ Worth reading, because you're giving this app a lot of trust. Android's warnings
 | Permission | Why Otori needs it | What it reads |
 | --- | --- | --- |
 | **Accessibility** | It's the only way to draw above the status bar and around the camera. | Which app is in front, and where the status bar's icons are. Not the content of your apps. |
-| **Notification access** | Android only lets apps see what's playing if they have this. | The current song, art and playback controls. It ignores what your notifications say. |
+| **Notification access** | Android only lets apps see what's playing if they have this. | The current song, art and playback controls, and Live Updates: notifications Android promoted, so already shown in your status bar. It ignores every other notification. |
 
 **Otori can't go online.** It doesn't have the internet permission, and has no analytics or third-party code. You can
 check with:
@@ -188,7 +229,10 @@ top of the screen for notifications.
 
 ## Known issues
 
-- It only does music. Calls, timers and charging aren't in yet.
+- It does music and other apps' Live Updates. Calls, timers and charging aren't in yet, unless the app shows them as a Live
+  Update.
+- An expanded Live Update has the music player's height, so there's room left under its progress bar.
+- Live Updates haven't been tried from a real app on the phone, only from the test player on the emulator.
 - There are no favourite or AirPlay buttons, which the real island has. We took them out because they didn't do anything
   on our test phone.
 - The font is [Inter](https://rsms.me/inter/), because Apple only licenses San Francisco for its own devices. It's sized

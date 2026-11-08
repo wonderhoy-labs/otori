@@ -17,8 +17,9 @@ iOS island. Named for Otori Emu of Wonderlands×Showtime, whose "Wonderhoy!" the
 | `android/app/src/main/kotlin/com/wonderhoylabs/otori/Spec.kt` | Every measured size, colour and timing |
 | `android/app/src/main/kotlin/com/wonderhoylabs/otori/IslandView.kt` | Draws and animates the island, and its gestures |
 | `android/app/src/main/kotlin/com/wonderhoylabs/otori/IslandService.kt` | The overlay windows, and what to show when |
+| `android/app/src/main/kotlin/com/wonderhoylabs/otori/LiveUpdates.kt` | Other apps' Live Updates, Otori's contract with them |
 | `android/app/src/main/kotlin/com/wonderhoylabs/otori/MainActivity.kt` | The Compose setup screen |
-| `android/test-player/` | A small music app with a real media session, for tests only |
+| `android/test-player/` | A small music app with a real media session, and a Live Update to post, for tests only |
 | `tools/e2e.ts`, `tools/setup-flow.ts`, `tools/prepare-emulator.ts` | Device tests (`pnpm e2e`, `pnpm setup-flow`, `pnpm prepare-emulator`) |
 | `crates/otori-measure/` | Tracks the island in recordings and fits springs (`pnpm measure`) |
 | `tools/measure/ios_full.csv` | The tracked motion of the real iOS island |
@@ -48,6 +49,9 @@ pnpm prepare-emulator emulator-5554 && pnpm e2e --serial emulator-5554
 - **Match the real thing.** Changes to the island's look or motion are measured against `tools/measure/ios_full.csv`
   with `pnpm measure compare`, not judged by eye.
 - `am force-stop` kills the accessibility service, and Android doesn't restart it. Toggle the setting to bring it back.
+- **Other apps reach the island through Android's own Live Updates**, read in `LiveUpdates.kt`: promoted ongoing
+  notifications, their short critical text and `ProgressStyle`. That's Otori's library, so keep it to Android's API, and
+  document anything new it reads in the README's "Use it in your app". Don't invent a private API for it without asking.
 - Never replace the Android signing key. CI signs with the `OTORI_KEYSTORE_BASE64`, `OTORI_KEYSTORE_PASSWORD`,
   `OTORI_KEY_ALIAS` and `OTORI_KEY_PASSWORD` secrets.
 

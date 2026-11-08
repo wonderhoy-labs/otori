@@ -130,6 +130,9 @@ class IslandView(context: Context, private val host: IslandHost) : View(context)
 	private val artistRow =
 		TextRow(textPaint(Spec.Type.ARTIST_SIZE, inter.artist, Spec.Colors.ARTIST, Spec.Type.ARTIST_TRACKING))
 	private val timePaint = textPaint(Spec.Type.TIME_SIZE, inter.time, Spec.Colors.TIME, 0f)
+
+	/** A Live Update's short text, in its app's colour, where music has its waveform. */
+	private val chipPaint = textPaint(Spec.Type.TITLE_SIZE, inter.title, Color.WHITE, 0f)
 	private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
 	private val artPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
 	private val artMatrix = Matrix()
@@ -562,8 +565,15 @@ class IslandView(context: Context, private val host: IslandHost) : View(context)
 		val artSize = Spec.Compact.ART_SIZE
 		drawArt(c, shownArtwork.small, artX, cy - artSize / 2f, artSize, Spec.Compact.ART_R)
 		val waveRight = w - Spec.Compact.WAVE_INSET
-		val waveLeft = waveRight - waveWidth()
-		drawWave(c, waveLeft, cy, Spec.Compact.BAR_W, Spec.Compact.BAR_PITCH, Spec.Compact.WAVE_MAX_H)
+		val np = nowPlaying
+		if (np != null && np.isLiveUpdate) {
+			// From the camera hole's edge to the waveform's own inset, which is the room music's waveform has.
+			val roomLeft = w / 2f + place.holeRadius / place.scale + Spec.Compact.CAMERA_GAP
+			drawChip(c, np, roomLeft, waveRight, cy)
+		} else {
+			val waveLeft = waveRight - waveWidth()
+			drawWave(c, waveLeft, cy, Spec.Compact.BAR_W, Spec.Compact.BAR_PITCH, Spec.Compact.WAVE_MAX_H)
+		}
 		node.endRecording()
 		canvas.save()
 		canvas.translate(left - pad, top - pad)
@@ -599,9 +609,64 @@ class IslandView(context: Context, private val host: IslandHost) : View(context)
 		canvas.restore()
 	}
 
+	/**
+	 * A Live Update's short text, or how far along it is, right-aligned in the compact island and shrunk to fit its
+	 * room. A Live Update with neither shows only its icon.
+	 */
+	private fun drawChip(c: Canvas, np: NowPlaying, roomLeft: Float, right: Float, cy: Float) {
+		val text = np.chip ?: if (np.durationMs > 0) "${np.positionMs * 100 / np.durationMs}%" else return
+		chipPaint.color = shownArtwork.tint
+		chipPaint.textSize = Spec.Type.TITLE_SIZE
+		val room = (right - roomLeft).coerceAtLeast(1f)
+		val width = chipPaint.measureText(text)
+		if (width > room) chipPaint.textSize = Spec.Type.TITLE_SIZE * room / width
+		val fm = chipPaint.fontMetrics
+		chipPaint.textAlign = Paint.Align.RIGHT
+		c.drawText(text, right, cy - (fm.ascent + fm.descent) / 2f, chipPaint)
+	}
+
+	/** A Live Update expanded: its icon, title and text, and its progress, with nothing to press but itself. */
+	private fun drawLiveContent(c: Canvas, np: NowPlaying) {
+		val m = Spec.Media
+		drawArt(c, shownArtwork.large, m.ART_X, m.ART_Y, m.ART_SIZE, m.ART_R)
+		val textA = (textAlpha * trackFade.value * 255).toInt().coerceIn(0, 255)
+		titleRow.paint.alpha = textA
+		artistRow.paint.alpha = textA
+		val marqueeT = clock - expandedSince
+		titleRow.draw(c, m.TEXT_X, m.TITLE_BASELINE, m.TEXT_RIGHT - m.TEXT_X, marqueeT)
+		artistRow.draw(c, m.TEXT_X, m.ARTIST_BASELINE, m.TEXT_RIGHT - m.TEXT_X, marqueeT)
+		np.chip?.let { chip ->
+			timePaint.alpha = textA
+			timePaint.textAlign = Paint.Align.RIGHT
+			val fm = timePaint.fontMetrics
+			c.drawText(chip, m.TIME_RIGHT, m.TIME_CY - (fm.ascent * 0.72f) / 2f, timePaint)
+		}
+		if (np.durationMs <= 0) return
+		val fraction = (np.positionMs.toFloat() / np.durationMs).coerceIn(0f, 1f)
+		val top = m.BAR_CY - m.BAR_H / 2f
+		val bottom = m.BAR_CY + m.BAR_H / 2f
+		val r = m.BAR_H / 2f
+		fill.shader = null
+		fill.color = Spec.Colors.BAR_TRACK
+		rect.set(m.BAR_LEFT, top, m.BAR_RIGHT, bottom)
+		c.drawRoundRect(rect, r, r, fill)
+		val fillRight = m.BAR_LEFT + (m.BAR_RIGHT - m.BAR_LEFT) * fraction
+		if (fillRight > m.BAR_LEFT + 0.5f) {
+			c.save()
+			c.clipRect(m.BAR_LEFT, top, fillRight, bottom)
+			fill.color = shownArtwork.tint
+			c.drawRoundRect(rect, r, r, fill)
+			c.restore()
+		}
+	}
+
 	/** Everything inside the expanded media island, in points relative to its top left. */
 	private fun drawMediaContent(c: Canvas) {
 		val np = nowPlaying ?: return
+		if (np.isLiveUpdate) {
+			drawLiveContent(c, np)
+			return
+		}
 		val m = Spec.Media
 
 		drawArt(c, shownArtwork.large, m.ART_X, m.ART_Y, m.ART_SIZE, m.ART_R)
@@ -1010,6 +1075,8 @@ class IslandView(context: Context, private val host: IslandHost) : View(context)
 
 	private fun hitTest(px: Float, py: Float, np: NowPlaying?): Control {
 		val m = Spec.Media
+		// A Live Update has no controls. Anywhere on it opens it.
+		if (np != null && np.isLiveUpdate) return Control.INFO
 		if (py in (m.BAR_CY - 14f)..(m.BAR_CY + 14f) && px in (m.BAR_LEFT - 8f)..(m.BAR_RIGHT + 8f) &&
 			np != null && np.canSeek && np.durationMs > 0
 		) {
