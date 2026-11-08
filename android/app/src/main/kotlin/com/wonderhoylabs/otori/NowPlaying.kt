@@ -1,5 +1,6 @@
 package com.wonderhoylabs.otori
 
+import android.app.PendingIntent
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.SystemClock
@@ -11,7 +12,10 @@ class Artwork(val large: Bitmap?, val small: Bitmap?, val tint: Int) {
 	}
 }
 
-/** What the island shows for the current media session. */
+/**
+ * What the island shows: the current media session, or a Live Update from any app. A Live Update has no controls; its
+ * progress is positionMs out of durationMs, and it never plays.
+ */
 data class NowPlaying(
 	val packageName: String,
 	val title: String,
@@ -23,7 +27,16 @@ data class NowPlaying(
 	val speed: Float,
 	val isPlaying: Boolean,
 	val canSeek: Boolean,
+	val kind: Kind = Kind.MEDIA,
+	/** A Live Update's short text, such as "12 min", shown where music shows its waveform. */
+	val chip: String? = null,
+	/** What tapping a Live Update opens. */
+	val contentIntent: PendingIntent? = null,
 ) {
+	enum class Kind { MEDIA, LIVE_UPDATE }
+
+	val isLiveUpdate get() = kind == Kind.LIVE_UPDATE
+
 	fun positionAt(now: Long = SystemClock.elapsedRealtime()): Long {
 		val p = if (isPlaying) positionMs + ((now - positionTakenAt) * speed).toLong() else positionMs
 		return if (durationMs > 0) p.coerceIn(0, durationMs) else p.coerceAtLeast(0)

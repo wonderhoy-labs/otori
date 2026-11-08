@@ -469,6 +469,36 @@ function main(): void {
 	box = measure(dev.screenshot("10_session_ended"), dev);
 	r.near("session ending returns to idle", box.w_pt, IDLE_PT, 1.5);
 
+	console.info("== another app's Live Update shows, follows its progress, leaves when it ends, and opens on tap");
+	const live = (progress: number) =>
+		dev.shell(`am broadcast -n ${PLAYER}/.LiveUpdateReceiver --ei progress ${progress}`);
+	live(40);
+	sleep(2.2);
+	box = measure(dev.screenshot("12_live_update"), dev);
+	r.check("a Live Update opens the island", box.w_pt > IDLE_PT + 60, `${box.w_pt.toFixed(1)} pt wide`);
+	live(85);
+	sleep(1.5);
+	box = measure(dev.screenshot("13_live_update_later"), dev);
+	r.check("it stays open as it updates", box.w_pt > IDLE_PT + 60, `${box.w_pt.toFixed(1)} pt wide`);
+	live(-1);
+	sleep(2.2);
+	box = measure(dev.screenshot("14_live_update_ended"), dev);
+	r.near("it leaves when the notification goes", box.w_pt, IDLE_PT, 1.5);
+	live(40);
+	sleep(2.2);
+	dev.tap(pillCx, pillCy);
+	r.check(
+		"tapping it opens its content intent",
+		waitFor(() => dev.focus().includes(PLAYER)),
+		dev.focus(),
+	);
+	// The player starts music when it opens, which would hold the island, so stop it. That also clears the update.
+	dev.shell(`am force-stop ${PLAYER}`);
+	dev.shell("am start -a android.settings.SETTINGS");
+	sleep(2.2);
+	box = measure(dev.screenshot("15_after_live_update"), dev);
+	r.near("idle again once the app that posted it stops", box.w_pt, IDLE_PT, 1.5);
+
 	console.info("== at rest the island takes no touches, so the status bar works right over the camera");
 	const window = dev.shell("dumpsys window windows | grep -A12 'Window #.*OtoriTouch' | grep -m1 -E 'fl=|flags='");
 	r.check("touch window is not touchable when idle", window.includes("NOT_TOUCHABLE"), window.trim().slice(0, 90));

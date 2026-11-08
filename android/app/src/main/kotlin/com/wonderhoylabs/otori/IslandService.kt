@@ -19,6 +19,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.VibrationEffect
 import android.os.VibratorManager
+import android.service.notification.StatusBarNotification
 import android.view.Display
 import android.view.Gravity
 import android.view.MotionEvent
@@ -45,10 +46,16 @@ class IslandService :
 	private var media: MediaSource? = null
 	private var attached = false
 	private var nowPlaying: NowPlaying? = null
+
+	/** Live Updates from other apps, by notification key, the most recently updated last. */
+	private val liveUpdates = LinkedHashMap<String, NowPlaying>()
+
+	/** What the island showed last, so that a different item can bring back one the user swiped away. */
+	private var shownKey: String? = null
 	private var foregroundPackage: String? = null
 	private var hiddenByRotation = false
 	private val main = Handler(Looper.getMainLooper())
-	private val pauseLinger = Runnable { updateResting() }
+	private val pauseLinger = Runnable { refreshShown() }
 	private var pausedAt = 0L
 	private var userHidden = false
 	private var previewOpen = false
@@ -120,6 +127,7 @@ class IslandService :
 			},
 		)
 		media = MediaSource(this, { computePlacement().scale }) { np -> onNowPlaying(np) }.also { it.start() }
+		IslandNotificationListener.active().forEach { acceptNotification(it, removed = false) }
 		measureStatusBar()
 	}
 
@@ -184,9 +192,7 @@ class IslandService :
 
 	private fun onNowPlaying(np: NowPlaying?) {
 		val wasPlaying = nowPlaying?.isPlaying == true
-		if (np?.title != nowPlaying?.title || np?.packageName != nowPlaying?.packageName) userHidden = false
 		nowPlaying = np
-		island.setNowPlaying(np)
 		main.removeCallbacks(pauseLinger)
 		if (attached) applyTouchWindow()
 		if (np != null && !np.isPlaying) {
@@ -196,6 +202,34 @@ class IslandService :
 		} else {
 			pausedAt = 0L
 		}
+		refreshShown()
+	}
+
+	// ---- Live Updates ----
+
+	private fun acceptNotification(sbn: StatusBarNotification, removed: Boolean) {
+		val update = if (removed) null else LiveUpdates.from(this, sbn, computePlacement().scale)
+		val changed = liveUpdates.remove(sbn.key) != null || update != null
+		if (update != null) liveUpdates[sbn.key] = update
+		if (changed && attached) refreshShown()
+	}
+
+	/** Music while it plays, or for a moment after it pauses. Otherwise the newest Live Update, then paused music. */
+	private fun shown(): NowPlaying? {
+		val music = nowPlaying
+		val musicActive = music != null &&
+			(music.isPlaying || System.currentTimeMillis() - pausedAt < Spec.Timing.PAUSE_LINGER_MS)
+		if (musicActive) return music
+		return liveUpdates.values.lastOrNull { it.packageName != foregroundPackage } ?: music
+	}
+
+	private fun refreshShown() {
+		val item = shown()
+		val key = item?.let { "${it.kind}/${it.packageName}/${it.title}" }
+		if (key != shownKey) userHidden = false
+		shownKey = key
+		island.setNowPlaying(item)
+		if (attached) applyTouchWindow()
 		updateResting()
 	}
 
@@ -208,10 +242,10 @@ class IslandService :
 	}
 
 	private fun updateResting() {
-		val np = nowPlaying
+		val np = shown()
 		val locked = getSystemService(KeyguardManager::class.java).isKeyguardLocked
 		val show = np != null && !locked && !userHidden && np.packageName != foregroundPackage &&
-			(np.isPlaying || System.currentTimeMillis() - pausedAt < Spec.Timing.PAUSE_LINGER_MS)
+			(np.isLiveUpdate || np.isPlaying || System.currentTimeMillis() - pausedAt < Spec.Timing.PAUSE_LINGER_MS)
 		// Measure first, so the island opens at the right size.
 		if (show) measureStatusBar()
 		island.setResting(if (show) Presentation.COMPACT else Presentation.IDLE)
@@ -224,7 +258,7 @@ class IslandService :
 		if (pkg == "com.android.systemui" || pkg == packageName || pkg.contains("inputmethod")) return
 		if (pkg != foregroundPackage) {
 			foregroundPackage = pkg
-			updateResting()
+			refreshShown()
 			statusBarMayHaveChanged()
 		}
 	}
@@ -243,12 +277,25 @@ class IslandService :
 	private val controller get() = media?.controller
 
 	override fun openNowPlayingApp() {
-		val c = controller ?: return
 		val options = ActivityOptions.makeBasic().apply {
 			if (Build.VERSION.SDK_INT >= 34) {
 				setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
 			}
 		}.toBundle()
+		val item = shown()
+		if (item?.isLiveUpdate == true) {
+			try {
+				item.contentIntent?.send(this, 0, null, null, null, null, options)?.let { return }
+			} catch (_: PendingIntent.CanceledException) {
+				// Fall through to launching the app.
+			}
+			packageManager.getLaunchIntentForPackage(item.packageName)?.let {
+				it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+				startActivity(it)
+			}
+			return
+		}
+		val c = controller ?: return
 		val session = c.sessionActivity
 		try {
 			if (session != null) {
@@ -307,7 +354,7 @@ class IslandService :
 	}
 
 	override fun onSwipeAside(hide: Boolean) {
-		if (!hide && nowPlaying == null) return
+		if (!hide && shown() == null) return
 		userHidden = hide
 		haptic(false)
 		updateResting()
@@ -323,7 +370,7 @@ class IslandService :
 		touchParams.y = touchBounds.top
 		touchParams.width = touchBounds.width()
 		touchParams.height = touchBounds.height()
-		val takesTouches = presentation != Presentation.IDLE || (userHidden && nowPlaying != null)
+		val takesTouches = presentation != Presentation.IDLE || (userHidden && shown() != null)
 		val flag = WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
 		touchParams.flags = if (takesTouches) touchParams.flags and flag.inv() else touchParams.flags or flag
 		windows.updateViewLayout(touch, touchParams)
@@ -345,6 +392,22 @@ class IslandService :
 
 		fun onStatusBarMayHaveChanged() {
 			instance?.let { service -> service.main.post { service.statusBarMayHaveChanged() } }
+		}
+
+		/** A notification came or went, which may be another app's Live Update. */
+		fun onNotification(sbn: StatusBarNotification, removed: Boolean) {
+			instance?.let { service -> service.main.post { service.acceptNotification(sbn, removed) } }
+		}
+
+		/** The notification listener (re)connected, with everything that's showing now. */
+		fun onNotificationsReset(active: List<StatusBarNotification>) {
+			instance?.let { service ->
+				service.main.post {
+					service.liveUpdates.clear()
+					active.forEach { service.acceptNotification(it, removed = false) }
+					service.refreshShown()
+				}
+			}
 		}
 
 		/** The preview draws its own island, so the overlay steps aside while it is open. */
