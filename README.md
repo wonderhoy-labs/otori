@@ -7,11 +7,10 @@
 <p align="center">A Dynamic Island for your Pixel.</p>
 
 <p align="center">
-  <a href="https://github.com/wonderhoy-labs/otori/actions/workflows/build.yml"><img src="https://github.com/wonderhoy-labs/otori/actions/workflows/build.yml/badge.svg" alt="Build"></a>
+  <a href="https://github.com/wonderhoy-labs/otori/actions/workflows/ci.yml"><img src="https://github.com/wonderhoy-labs/otori/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache 2.0"></a>
+  <a href="#license-and-credits"><img src="https://img.shields.io/badge/Otori%20Emu-Wonderlands%C3%97Showtime-FF66BB" alt="Named for Otori Emu of Wonderlands×Showtime"></a>
 </p>
-
-<p align="center"><sub>A <a href="https://github.com/wonderhoy-labs">Wonderhoy Labs</a> project</sub></p>
 
 The Dynamic Island is one of the things you miss after moving from an iPhone to Android. Otori brings it to the Pixel.
 
@@ -51,7 +50,7 @@ Open Otori and tap **Turn On** on both cards. Each one takes you to the right pl
 - **Show the island:** tap Otori, turn on **Use Otori**, then tap **Allow**.
 - **See what's playing:** turn on the switch, then tap **Allow**.
 
-Android's warnings about these sound alarming. [Here's what Otori actually does with them.](#privacy)
+Android's warnings about these sound alarming. [Here's what Otori actually does with them.](#security-and-privacy)
 
 **Is a switch greyed out?** Android blocks these switches for apps installed from outside an app store, until you allow
 it. Go to Settings > Apps > Otori, tap the ⋮ menu, choose **Allow restricted settings**, then try again.
@@ -98,6 +97,31 @@ Some things are different on purpose:
 - **Otori gets narrower** when your status bar is full, so it doesn't cover your icons. It always stays centred on the
   camera, and stops shrinking at about 99 pt, the least that fits the art, the camera and the waveform.
 
+## What has been tested
+
+On the emulator, with a real media session and injected touches, all passing:
+
+- The idle circle's size and position, and that nothing is drawn around the hole.
+- Touches below the island reach the app, and swiping from the camera opens the shade.
+- The island stays idle while the music app is in front, and returns when it leaves.
+- The compact size, the art and the waveform's movement, with new notifications moving the island's edges, down to its
+  minimum, and back.
+- Long press, swipe down and swipe up. Swipe down worked 20 times out of 20 after the fix above.
+- Play, pause, next, previous and dragging the progress bar, checked against the session's own state in `dumpsys`.
+- Tapping the island opens the music app. A session ending returns the island to idle. Sideways swipes tuck it away and bring
+  it back.
+- Turning the accessibility switch off and on 8 times in a row, with no crash.
+- The first-run setup, by tapping through the real Settings screens (`pnpm setup-flow`).
+
+On a Pixel 10 Pro with Android 17:
+
+- The overlay draws above the status bar, centred on the camera.
+- The compact form shows Apple Music's real artwork and waveform over other apps.
+- The status bar measurement finds the real icons.
+- In one session of real use, 0.37% of 10,910 frames were late.
+
+A copy of just the files in this repository builds with no lint errors.
+
 ## How it works
 
 Otori is made of two parts, each using one of the permissions you turned on:
@@ -121,7 +145,7 @@ touches for it, so touches anywhere else go straight to your apps.
 The motion comes from physics rather than a fixed animation. Each size has a spring, using settings fitted to the real
 island, so interrupting an animation stays smooth. The drawing is all custom, and the app has no third-party libraries.
 
-## Privacy
+## Security and privacy
 
 Worth reading, because you're giving this app a lot of trust. Android's warnings describe everything these permissions
 *could* allow, and they could allow a lot.
@@ -139,9 +163,9 @@ adb shell dumpsys package com.wonderhoylabs.otori | grep -A3 "requested permissi
 ```
 
 The code that uses these is short, so you can read it yourself:
-[`StatusBarProbe.kt`](app/src/main/java/com/wonderhoylabs/otori/StatusBarProbe.kt),
-[`MediaSource.kt`](app/src/main/java/com/wonderhoylabs/otori/MediaSource.kt) and the `onAccessibilityEvent` function in
-[`IslandService.kt`](app/src/main/java/com/wonderhoylabs/otori/IslandService.kt).
+[`StatusBarProbe.kt`](android/app/src/main/kotlin/com/wonderhoylabs/otori/StatusBarProbe.kt),
+[`MediaSource.kt`](android/app/src/main/kotlin/com/wonderhoylabs/otori/MediaSource.kt) and the `onAccessibilityEvent` function in
+[`IslandService.kt`](android/app/src/main/kotlin/com/wonderhoylabs/otori/IslandService.kt).
 
 ## Troubleshooting
 
@@ -182,56 +206,65 @@ top of the screen for notifications.
 
 ## Development
 
-You need JDK 17 or newer and the Android SDK with platform 37. Or open the project in Android Studio. On Windows, use
-`gradlew.bat`.
+You need JDK 17 or newer and the Android SDK with platform 37. Or open `android/` in Android Studio. On Windows, use
+`gradlew.bat`. The tests and tools also need Node 24 or newer with pnpm, and the measuring needs Rust.
+
+Otori follows the [Wonderhoy Labs guideline](.claude/skills/wonderhoy-unification/SKILL.md), like every Wonderhoy Labs project.
+The shared tools need Node 24 or newer and pnpm. Format before you commit, and check the result:
 
 ```bash
-./gradlew :app:assembleRelease
+pnpm install && pnpm format && pnpm unify
 ```
 
-The APK ends up at `app/build/outputs/apk/release/app-release.apk`. It's signed with your debug key unless you set
+```bash
+cd android && ./gradlew :app:assembleRelease
+```
+
+The APK ends up at `android/app/build/outputs/apk/release/app-release.apk`. It's signed with your debug key unless you set
 `OTORI_KEYSTORE`, `OTORI_KEYSTORE_PASSWORD`, `OTORI_KEY_ALIAS` and `OTORI_KEY_PASSWORD`.
 
 | Where | What's in it |
 | --- | --- |
-| `app/src/main/java/com/wonderhoylabs/otori/Spec.kt` | Every measured size, colour and timing. Start here to change how something looks. |
+| `android/app/src/main/kotlin/com/wonderhoylabs/otori/Spec.kt` | Every measured size, colour and timing. Start here to change how something looks. |
 | `IslandView.kt` | Draws and animates the island, and handles gestures |
 | `IslandShape.kt` and `Spring.kt` | The outline, from capsule to player, and the spring physics |
 | `IslandService.kt` | The overlay windows, and deciding what to show when |
 | `MediaSource.kt` and `StatusBarProbe.kt` | Follows media sessions, and measures the status bar |
 | `MainActivity.kt` and `PreviewActivity.kt` | The setup screen, and the island with a pretend player |
-| `test-player/` | A small music app with a real media session, for tests only |
-| `tools/e2e.py` | The end-to-end test |
-| `tools/measure/` and `tools/ios-harness/` | How the real island was measured |
+| `android/test-player/` | A small music app with a real media session, for tests only |
+| `tools/e2e.ts`, `tools/setup-flow.ts`, `tools/prepare-emulator.ts` | The end-to-end test, the setup walk-through, and getting an emulator ready |
+| `crates/otori-measure/`, `tools/measure/` and `tools/apple/` | How the real island was measured |
+| `tools/theme.ts`, `tools/unify.ts` | The shared Wonderhoy Labs tools: the colours, and the guideline check |
 
 Unit tests run on your computer:
 
 ```bash
-./gradlew :app:testDebugUnitTest
+cd android && ./gradlew :app:testDebugUnitTest
 ```
 
 The end-to-end test runs on an emulator, with real windows, real audio and a real media session, and it sends real
 touches. Make a **Pixel 10 Pro** emulator with an API 37 image in Android Studio's Device Manager and start it, then:
 
 ```bash
-python3 -m pip install -r tools/requirements.txt
+pnpm install
 ```
 
 ```bash
-./gradlew :app:assembleRelease :test-player:assembleDebug
+cd android && ./gradlew :app:assembleRelease :test-player:assembleDebug
 ```
 
 ```bash
-tools/prepare_emulator.sh emulator-5554
+pnpm prepare-emulator emulator-5554
 ```
 
 ```bash
-python3 tools/e2e.py --serial emulator-5554
+pnpm e2e --serial emulator-5554
 ```
 
-Pushing a tag like `v0.1.0` builds the APK and publishes a GitHub release. See
-[build.yml](.github/workflows/build.yml) for the signing secrets it can use. Without them, each release gets a throwaway
-key and has to be installed fresh instead of updating.
+Pushing a tag like `v0.1.0`, matching `VERSION`, builds everything and publishes a GitHub release through
+[ci.yml](.github/workflows/ci.yml). It signs the APK with the repository's `OTORI_KEYSTORE_BASE64`, `OTORI_KEYSTORE_PASSWORD`,
+`OTORI_KEY_ALIAS` and `OTORI_KEY_PASSWORD` secrets. Without them, each release gets a throwaway key and has to be installed
+fresh instead of updating.
 
 If you're reporting a bug, please include your phone model, Android build number, music app and a screenshot if you can.
 
@@ -239,10 +272,10 @@ If you're reporting a bug, please include your phone model, Android build number
 <summary>Testing without breaking things</summary>
 
 - **Don't run the tests on a phone someone is using.** They tap at fixed positions, whatever is on screen. A run on a real
-  phone once landed taps on whatever its owner had open. `prepare_emulator.sh` refuses to run on a real phone for a similar
+  phone once landed taps on whatever its owner had open. `pnpm prepare-emulator` refuses to run on a real phone for a similar
   reason: it changes security settings, and those switches are for the phone's owner.
 - The emulator has to match the phone's display. The Pixel 10 Pro's cutout is defined for its 1280 px panel, so the emulator
-  needs that panel size with `wm size 1080x2410` and `wm density 420` on top. `prepare_emulator.sh` sets these.
+  needs that panel size with `wm size 1080x2410` and `wm density 420` on top. `pnpm prepare-emulator` sets these.
 - `am force-stop` kills the accessibility service, and Android doesn't restart it. Toggle the setting to bring it back.
 - Check you're testing what you built. A failed build leaves the old APK in place, and it's easy to reinstall one module and
   not the other.
@@ -265,13 +298,13 @@ to use Otori. It's here so nobody has to work it out twice.
 <details>
 <summary>How the real island was measured</summary>
 
-1. **Run the real island.** `tools/ios-harness/` is a small iOS app that starts a Live Activity, which the system draws in
+1. **Run the real island.** `tools/apple/ios-harness/` is a small iOS app that starts a Live Activity, which the system draws in
    its real island. Updating the activity with an alert makes the island expand for six seconds by itself, so no touch input
    is needed.
-2. **Record it.** `tools/measure/wincap.swift` records the simulator's window at about 85 frames a second.
-3. **Track the outline.** `tools/measure/track_island.py` finds the island's edges in every frame, to a fraction of a pixel.
-4. **Fit the motion.** `tools/measure/fit_motion.py` fits spring curves to the tracked sizes. The app uses those springs.
-5. **Check the result.** `tools/measure/compare_motion.py` compares a recording of Otori with the real island.
+2. **Record it.** `tools/apple/wincap.swift` records the simulator's window at about 85 frames a second.
+3. **Track the outline.** `pnpm measure track` finds the island's edges in every frame, to a fraction of a pixel.
+4. **Fit the motion.** `pnpm measure fit` fits spring curves to the tracked sizes. The app uses those springs.
+5. **Check the result.** `pnpm measure compare` compares a recording of Otori with the real island.
 
 To check Otori against the real island yourself, you only need an emulator, because the tracked iOS data is included in
 `tools/measure/ios_full.csv`. The preview can slow its animation down, which gives a busy computer time to record every
@@ -290,13 +323,13 @@ adb pull /sdcard/m.mp4
 ```
 
 ```bash
-python3 tools/measure/track_island.py m.mp4 m.csv --crop 540:400:0:0 --ppp 1.374 --side 240 --run 8
+pnpm measure track m.mp4 m.csv --crop 540:400:0:0 --ppp 1.374 --side 240 --run 8
 ```
 
 Multiply the `t` column of `m.csv` by 0.25, to get back to real time, and then:
 
 ```bash
-python3 tools/measure/compare_motion.py tools/measure/ios_full.csv m.csv
+pnpm measure compare tools/measure/ios_full.csv m.csv
 ```
 
 To capture the iOS side again, you'll need a Mac with Xcode, and Screen Recording permission for your terminal. Open an
@@ -304,19 +337,19 @@ iPhone 15 Pro simulator, then run the following. Launch **IslandRef** in the sim
 the island appears.
 
 ```bash
-tools/ios-harness/build.sh <simulator-udid>
+tools/apple/ios-harness/build.sh <simulator-udid>
 ```
 
 ```bash
-swiftc -O -o tools/measure/wincap tools/measure/wincap.swift
+swiftc -O -o tools/apple/wincap tools/apple/wincap.swift
 ```
 
 ```bash
-tools/measure/wincap "<simulator window title>" 44 ios.mp4
+tools/apple/wincap "<simulator window title>" 44 ios.mp4
 ```
 
-`track_island.py`'s `--crop` and `--ppp` depend on your window's size and position, and `fit_motion.py` has the time of each
-transition in the included capture written into it.
+`pnpm measure track`'s `--crop` and `--ppp` depend on your window's size and position, and `pnpm measure fit` has the time of
+each transition in the included capture written into it. The measuring is Rust, in `crates/otori-measure/`, and needs `ffmpeg`.
 
 </details>
 
@@ -456,39 +489,19 @@ to measure.
 
 </details>
 
-<details>
-<summary>What else has been tested</summary>
-
-On the emulator, with a real media session and injected touches, all passing:
-
-- The idle circle's size and position, and that nothing is drawn around the hole.
-- Touches below the island reach the app, and swiping from the camera opens the shade.
-- The island stays idle while the music app is in front, and returns when it leaves.
-- The compact size, the art and the waveform's movement, with new notifications moving the island's edges, down to its
-  minimum, and back.
-- Long press, swipe down and swipe up. Swipe down worked 20 times out of 20 after the fix above.
-- Play, pause, next, previous and dragging the progress bar, checked against the session's own state in `dumpsys`.
-- Tapping the island opens the music app. A session ending returns the island to idle. Sideways swipes tuck it away and bring
-  it back.
-- Turning the accessibility switch off and on 8 times in a row, with no crash.
-- The first-run setup, by tapping through the real Settings screens (`tools/setup_flow.py`).
-
-On a Pixel 10 Pro with Android 17:
-
-- The overlay draws above the status bar, centred on the camera.
-- The compact form shows Apple Music's real artwork and waveform over other apps.
-- The status bar measurement finds the real icons.
-- In one session of real use, 0.37% of 10,910 frames were late.
-
-A copy of just the files in this repository builds with no lint errors.
-
-</details>
-
 ## License and credits
 
-Otori is a [Wonderhoy Labs](https://github.com/wonderhoy-labs) project, released under the [Apache License 2.0](LICENSE). The
-license doesn't cover the Otori name or logo. It isn't affiliated with or endorsed by Apple or Google. Dynamic Island is a
-trademark of Apple Inc.
+Otori is a [Wonderhoy Labs](https://github.com/wonderhoy-labs) project, released under the [Apache License 2.0](LICENSE). It
+isn't affiliated with or endorsed by Apple or Google. Dynamic Island is a trademark of Apple Inc.
 
-The app includes the [Inter](https://rsms.me/inter/) typeface by Rasmus Andersson, under the
-[SIL Open Font License](app/src/main/assets/fonts/Inter-OFL.txt).
+It stands on the work of these projects:
+
+- [Inter](https://rsms.me/inter/), the typeface by Rasmus Andersson that the island draws with, under the
+  [SIL Open Font License](android/app/src/main/assets/fonts/Inter-OFL.txt)
+- [Jetpack Compose and AndroidX](https://developer.android.com/jetpack) (Apache 2.0), for the setup screen
+- [Material Color Utilities](https://github.com/material-foundation/material-color-utilities) (Apache 2.0), which makes the
+  setup screen's colours from Otori Emu's image colour
+
+Otori is named for Otori Emu of Wonderlands×Showtime, from Project SEKAI COLORFUL STAGE! feat. Hatsune Miku. Wonderhoy Labs is a
+fan project, not affiliated with SEGA, Colorful Palette or Crypton Future Media, who own Project SEKAI and its characters.
+The Apache License doesn't cover the Otori name or logo.

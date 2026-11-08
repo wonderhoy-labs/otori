@@ -1,0 +1,36 @@
+{
+	"name": "otori",
+	"private": true,
+	"type": "module",
+	"license": "Apache-2.0",
+	"packageManager": "pnpm@12.15.0",
+	"engines": {
+		"node": ">=24"
+	},
+	"wonderhoy": {
+		"name": "Otori",
+		"tagline": "A Dynamic Island for your Pixel.",
+		"character": "Otori Emu",
+		"unit": "Wonderlands×Showtime",
+		"color": "#FF66BB"
+	},
+	"scripts": {
+		"lint": "biome ci",
+		"format": "biome check --write",
+		"typecheck": "tsc -p .",
+		"theme": "node tools/theme.ts",
+		"unify": "node tools/unify.ts",
+		"prepare-emulator": "node tools/prepare-emulator.ts",
+		"e2e": "node tools/e2e.ts",
+		"setup-flow": "node tools/setup-flow.ts",
+		"measure": "cargo run --quiet --release -p otori-measure --"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.6.2",
+		"@material/material-color-utilities": "0.3.0",
+		"@types/node": "26.6.6",
+		"@types/pngjs": "6.0.5",
+		"pngjs": "7.0.0",
+		"typescript": "7.0.2"
+	}
+}

@@ -1,0 +1,47 @@
+# Weekly, one pull request per ecosystem, and never for a release younger than two weeks.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    ignore:
+      # 0.4's ES modules import files without their extensions, so Node can't load them, and tools/theme.ts uses 0.3's
+      # scheme API. Move it by hand once a release fixes both.
+      - dependency-name: "@material/material-color-utilities"
+        versions: [">=0.4.0"]
+    groups:
+      npm:
+        patterns: ["*"]
+
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      cargo:
+        patterns: ["*"]
+
+  - package-ecosystem: gradle
+    directory: /android
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      gradle:
+        patterns: ["*"]
