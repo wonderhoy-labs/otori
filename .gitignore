@@ -1,12 +1,27 @@
-build/
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Rust
+target/
+
+# Android
 .gradle/
 .kotlin/
+build/
+local.properties
+*.keystore
+*.jks
+captures/
+.cxx/
+.externalNativeBuild/
+
+# Editors and systems
 .idea/
+.vscode/
 *.iml
 .DS_Store
-local.properties
-*.jks
-*.keystore
-__pycache__/
-tools/measure/wincap
-tools/ios-harness/build/
+
+# The window recorder tools/apple/wincap.swift compiles to
+tools/apple/wincap

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string name="app_name">Otori</string>
+	<string name="tagline">A Dynamic Island for your Pixel</string>
+	<string name="accessibility_description">Draws the island above the status bar and around the camera. It reads which app is in front, so it can hide the music island while that app is open, and where the icons in the status bar are, so it can fit between them. It does not read the content of your apps.</string>
+</resources>

@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  checks:
+    uses: wonderhoy-labs/.github/.github/workflows/checks.yml@main
+
+  # otori-measure is a tool for matching the island to the real one, so it's tested but not released.
+  measure:
+    uses: wonderhoy-labs/.github/.github/workflows/rust.yml@main
+
+  # The app has no native code, so one APK runs on every Android CPU.
+  android:
+    uses: wonderhoy-labs/.github/.github/workflows/android.yml@main
+    with:
+      name: otori
+      env-prefix: OTORI
+      gradle-tasks: spotlessCheck :app:testDebugUnitTest :app:lintRelease :app:assembleRelease :test-player:assembleDebug
+    secrets:
+      KEYSTORE_BASE64: ${{ secrets.OTORI_KEYSTORE_BASE64 }}
+      KEYSTORE_PASSWORD: ${{ secrets.OTORI_KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.OTORI_KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.OTORI_KEY_PASSWORD }}
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [checks, measure, android]
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: wonderhoy-labs/.github/.github/workflows/release.yml@main
+    with:
+      title: Otori

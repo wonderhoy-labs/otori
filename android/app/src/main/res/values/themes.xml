@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<!-- Compose draws the setup screen. This covers the moment before it does. -->
+	<style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+		<item name="android:windowBackground">@color/window_background</item>
+		<item name="android:statusBarColor">@android:color/transparent</item>
+		<item name="android:navigationBarColor">@android:color/transparent</item>
+	</style>
+
+	<style name="PreviewTheme" parent="android:Theme.DeviceDefault.Light.NoActionBar">
+		<item name="android:windowBackground">@color/page</item>
+		<item name="android:windowFullscreen">true</item>
+		<item name="android:windowLayoutInDisplayCutoutMode">always</item>
+	</style>
+
+	<!-- iOS's grouped background, which the island's look and motion were measured against. -->
+	<color name="page">#F2F2F7</color>
+	<color name="icon_background">#FCE3DC</color>
+</resources>
