@@ -35,7 +35,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.wonderhoylabs.otori.ui.BrandFooter
 import com.wonderhoylabs.otori.ui.BrandHeader
 import com.wonderhoylabs.otori.ui.OtoriTheme
 
@@ -152,7 +151,6 @@ private fun SetupScreen(
 				onClick = onMedia,
 			)
 			OutlinedButton(onClick = onPreview, modifier = Modifier.fillMaxWidth()) { Text("Try the preview") }
-			BrandFooter()
 		}
 	}
 }
